@@ -1,0 +1,20 @@
+# Ignore data and models
+data/
+models/
+*.pt
+*.npz
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Conda / venv environments
+.env/
+.venv/
+*.egg-info/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+
