@@ -1,6 +1,5 @@
 # Ignore data and models
 data/
-models/
 *.pt
 *.npz
 
@@ -14,7 +13,5 @@ __pycache__/
 .venv/
 *.egg-info/
 
-# Jupyter notebook checkpoints
+# Jupyter 
 .ipynb_checkpoints/
-
-
