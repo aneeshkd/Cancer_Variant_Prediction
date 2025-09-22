@@ -1,0 +1,8 @@
+pandas 
+numpy 
+torch
+fair-esm
+biopython
+xgboost
+scikit-learn 
+requests
