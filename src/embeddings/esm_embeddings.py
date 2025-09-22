@@ -79,4 +79,4 @@ def featurize_delta(harmonized_csv, seq_dir, npz_file, layer=12):
     genes = np.array(genes)
     kept_idx = np.array(kept_idx)
 
-    np.savez(npz_file, X=X, y=y, hgnc=genes, idx=kept_idx)
+    np.savez(npz_file, X=X, y=y, hgnc=genes, idx=kept_idx, allow_pickle=True)

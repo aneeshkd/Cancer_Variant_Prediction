@@ -1,68 +1,51 @@
 import numpy as np
+import optuna
 from sklearn.model_selection import GroupKFold
-from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.metrics import roc_auc_score
 from xgboost import XGBClassifier
 
 
 def load_data(npz_file):
-    """
-    Load embeddings, labels, and grouping info (e.g., gene names).
-    """
     npz = np.load(npz_file)
     return npz["X"], npz["y"], npz["hgnc"], npz["idx"]
 
 
-def run_xgb(X, y, groups, n_splits=10, save_path="xgb_kinase_pathogenicity.json"):
-    """
-    Train and evaluate tuned XGBoost using GroupKFold cross-validation.
-    Also trains on the full dataset and saves the model.
-
-    Parameters
-    ----------
-    X : np.ndarray
-        Embeddings, shape (n_samples, n_features).
-    y : np.ndarray
-        Labels, shape (n_samples,).
-    groups : np.ndarray
-        Group identifiers (e.g., gene names), shape (n_samples,).
-    n_splits : int
-        Number of GroupKFold splits (default=10).
-    save_path : str
-        Path to save the final trained model.
-    """
-    params = {
-        "max_depth": 7,
-        "learning_rate": 0.05,
-        "n_estimators": 1000,
-        "subsample": 0.8,
-        "colsample_bytree": 0.6,
-        "min_child_weight": 1,
-        "reg_lambda": 2,
-        "reg_alpha": 0.1,
-        "scale_pos_weight": (np.sum(y == 0) / np.sum(y == 1)),
-        "eval_metric": "logloss",
-        "random_state": 42,
-        "tree_method": "hist"
-    }
+def xgb_objective(trial, X, y, groups, n_splits=10):
+    params = dict(
+        max_depth=trial.suggest_int("max_depth", 3, 10),
+        learning_rate=trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+        n_estimators=trial.suggest_int("n_estimators", 200, 1500),
+        subsample=trial.suggest_float("subsample", 0.5, 1.0),
+        colsample_bytree=trial.suggest_float("colsample_bytree", 0.5, 1.0),
+        min_child_weight=trial.suggest_int("min_child_weight", 1, 10),
+        reg_lambda=trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
+        reg_alpha=trial.suggest_float("reg_alpha", 1e-3, 10.0, log=True),
+        scale_pos_weight=float(np.sum(y == 0) / np.sum(y == 1)),
+        eval_metric="logloss",
+        random_state=42,
+        tree_method="hist",
+        use_label_encoder=False,
+    )
 
     gkf = GroupKFold(n_splits=n_splits)
-    scores = {"f1": [], "roc_auc": []}
-
-    for train_idx, test_idx in gkf.split(X, y, groups=groups):
+    fold_scores = []
+    for train_idx, val_idx in gkf.split(X, y, groups=groups):
         model = XGBClassifier(**params)
         model.fit(X[train_idx], y[train_idx])
-        y_pred = model.predict(X[test_idx])
-        y_prob = model.predict_proba(X[test_idx])[:, 1]
+        preds = model.predict_proba(X[val_idx])[:, 1]
+        fold_scores.append(roc_auc_score(y[val_idx], preds))
 
-        scores["f1"].append(f1_score(y[test_idx], y_pred))
-        scores["roc_auc"].append(roc_auc_score(y[test_idx], y_prob))
+    return float(np.mean(fold_scores))
 
-    results = {k: np.mean(v) for k, v in scores.items()}
-    print("Cross-validation results:", results)
 
-    final_model = XGBClassifier(**params)
+def run_xgb_optuna(X, y, groups, n_splits=10, n_trials=30, model_path="models/xgb_kinase_pathogenicity.json"):
+    study = optuna.create_study(direction="maximize")
+    study.optimize(lambda trial: xgb_objective(trial, X, y, groups, n_splits), n_trials=n_trials)
+
+    best_params = study.best_trial.params
+    print("Best ROC-AUC:", study.best_trial.value)
+    print("Best parameters:", best_params)
+
+    final_model = XGBClassifier(**best_params)
     final_model.fit(X, y)
-    final_model.save_model(save_path)
-    print(f"Final model trained and saved to {save_path}")
-
-    return results, final_model
+    final_model.save_model(model_path)
