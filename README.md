@@ -16,8 +16,6 @@ Clone the repo:
 ```bash
 git clone https://github.com/aneeshkd/Cancer_Variant_Prediction.git
 cd Cancer_Variant_Prediction
-conda create -n cancer_variant_prediction python=3.12
-conda activate cancer_variant_prediction
 pip install -r requirements.txt
 python main.py --input data/intermediate/test_df.csv --outdir results/
 ```
